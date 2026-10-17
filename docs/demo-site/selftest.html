@@ -1,0 +1,43 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NB tests</title>
+<style>body{font:16px -apple-system,sans-serif;padding:16px} li{margin:6px 0}</style></head>
+<body>
+<h3>NoBrowser self-test</h3>
+<a id="tel" href="tel:5550100">tel link</a> <a id="cust" href="nbtestapp://hello">custom link</a>
+<ul id="out"></ul>
+<script>
+// Each result is also requested as /log?<message>, so a plain `python3 -m http.server`
+// access log shows the results (the 404s are expected).
+function log(m){var li=document.createElement('li');li.textContent=m;document.getElementById('out').appendChild(li);fetch('/log?'+encodeURIComponent(m)).catch(function(){});}
+// Content-world isolation: these globals/handlers should be invisible to the page.
+log('page sees __nbReveal: ' + (typeof window.__nbReveal));
+log('page sees __nbInit: ' + (typeof window.__nbInit));
+log('page sees nbImageTap handler: ' + !!(window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.nbImageTap));
+// Overlay tamper test: find the overlay (last fixed div child of <html>) and try to hide it.
+setTimeout(function(){
+  var ov = Array.from(document.documentElement.children).find(function(e){return e.tagName==='DIV';});
+  log('overlay found: ' + !!ov);
+  if (ov) {
+    ov.style.display = 'none'; ov.className = 'hidden'; ov.setAttribute('hidden','');
+    setTimeout(function(){
+      var cs = getComputedStyle(ov);
+      log('after hide attempt: display=' + cs.display + ' class="' + ov.className + '" hidden=' + ov.hasAttribute('hidden'));
+      ov.remove();
+      setTimeout(function(){
+        var again = Array.from(document.documentElement.children).filter(function(e){return e.tagName==='DIV';}).length;
+        log('overlay divs after remove(): ' + again);
+        // Navigation-policy tests: each should be cancelled; page stays here.
+        document.getElementById('tel').click();
+        setTimeout(function(){ document.getElementById('cust').click(); }, 300);
+        setTimeout(function(){ location.href = 'mailto:someone@example.com'; }, 600);
+        setTimeout(function(){ location.href = 'data:text/html,<h1>data top-level</h1>'; }, 900);
+        setTimeout(function(){ log('still here at ' + location.href + ' (navigations blocked)'); }, 1500);
+        setTimeout(function(){ log('trying window.open(/index.html?from=window-open)'); window.open('/index.html?from=window-open', '_blank'); }, 4000);
+        setTimeout(function(){ log('after window.open still at ' + location.href); }, 4500);
+      }, 200);
+    }, 200);
+  }
+}, 500);
+</script>
+</body></html>
